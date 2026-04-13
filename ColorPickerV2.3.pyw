@@ -1215,8 +1215,8 @@ def classify_pixel_hsv(rgb):
     if v < 0.22: return "Black", s
     if v > 0.82 and s < 0.06: return "White", s
     if s < 0.15: return "Gray", s 
-    if h_deg < 10 or h_deg >= 330: 
-        res = "Brown" if v < 0.1 else "Red"
+    if h_deg < 10 or h_deg >= 345: 
+        res = "Brown" if v < 0.15 else "Red"
     elif 10 <= h_deg < 42: 
         res = "Brown" if (v < 0.82 and s < 0.78) or (v < 0.6) else "Orange"
     elif 42 <= h_deg < 75: res = "Yellow"
