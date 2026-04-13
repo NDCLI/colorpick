@@ -1,0 +1,20 @@
+==============================================
+   HUONG DAN SU DUNG - COLOR PICKER
+==============================================
+
+Day la mot ung dung doan mau sac thong minh su dung cong nghe Ensemble AI.
+
+Cach su dung:
+1. Click dup vao file "Install.bat" de khoi dong.
+   - Lan dau tien chay, App se tu dong thiet lap moi truong (mat khoang 30s).
+   - Nhung lan sau App se mo len ngay lap tuc.
+
+Cach lay mau:
+- Copy bat ky hinh anh nao ban muon (Windows Shift + S).
+- Nhan Ctrl + V tai giao dien App de phan tich.
+- Hoac nhan Alt + X / Alt + S de kich hoat kinh lup chon mau nhanh tai bat ky dau.
+
+Yeu cau:
+- May tinh can co Python.
+
+----------------------------------------------

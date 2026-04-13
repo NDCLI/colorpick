@@ -1,0 +1,1 @@
+g:/Project/ColorPicker/.venv/Scripts/python.exe g:/Project/ColorPicker/colorpick-main/ColorPickerV2.2.pyw
