@@ -2,7 +2,7 @@
 
 ![Banner](assets/banner.png)
 
-![Version](https://img.shields.io/badge/version-2.1-blue.svg)
+![Version](https://img.shields.io/badge/version-2.3-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.13+-green.svg)
 ![License](https://img.shields.io/badge/license-MIT-orange.svg)
 
