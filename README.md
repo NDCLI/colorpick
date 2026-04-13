@@ -1,5 +1,7 @@
 # Color Picker - Bộ Công Cụ Nhận Diện Màu Sắc Đa Năng
 
+![Banner](assets/banner.png)
+
 ![Version](https://img.shields.io/badge/version-2.1-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.13+-green.svg)
 ![License](https://img.shields.io/badge/license-MIT-orange.svg)
@@ -13,7 +15,7 @@
 - **📋 Tự động Clipboard:** Tự động phát hiện và phân tích khi bạn có hình ảnh mới trong bộ nhớ tạm (Clipboard).
 - **🎨 120+ Gam màu chuyên nghiệp:** Phân loại chi tiết các sắc thái màu như Ruby, Navy, Emerald, Sunflower, v.v.
 - **⚙️ Cài đặt linh hoạt:** Tùy chỉnh độ trong suốt, chế độ luôn hiện trên cùng (Always on top) và giao diện Sáng/Tối.
-- **🚀 Phím tắt toàn cầu:** Kích hoạt nhanh tính năng lấy màu bằng tổ hợp phím **Alt + S**.
+- **🚀 Phím tắt toàn cầu:** Kích hoạt nhanh tính năng lấy màu bằng tổ hợp phím **Alt + X** hoặc **Win + X**.
 
 ## 🛠️ Yêu cầu hệ thống
 
@@ -32,14 +34,14 @@
 ## 🚀 Cách sử dụng
 
 - **Dán ảnh (Ctrl + V):** Sao chép bất kỳ tấm ảnh nào và dán vào ứng dụng để AI phân tích màu chu đạo.
-- **Lấy màu nhanh (Alt + S):** Nhấn tổ hợp phím này để hiện kính lúp, di chuyển đến vị trí cần lấy màu và Click chuột trái để chọn.
+- **Lấy màu nhanh (Alt + X / Win + X):** Nhấn tổ hợp phím này để hiện kính lúp, di chuyển đến vị trí cần lấy màu và Click chuột trái để chọn.
 - **Quản lý cài đặt:** Nhấn biểu tượng ⚙️ để tùy chỉnh giao diện và độ trong suốt của ứng dụng.
 
 ## ⌨️ Phím tắt nhanh
 
 | Phím tắt | Chức năng |
 | :--- | :--- |
-| **Alt + S** | Kích hoạt công cụ lấy màu (Pick) |
+| **Alt + X / Win + X** | Kích hoạt công cụ lấy màu (Pick) |
 | **Ctrl + V** | Dán ảnh từ Clipboard để phân tích |
 | **Esc / Right Click** | Hủy chế độ Chọn điểm màu |
 | **F5 (Reset)** | Xóa kết quả và làm sạch giao diện |

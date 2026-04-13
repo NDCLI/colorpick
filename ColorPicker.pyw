@@ -1043,7 +1043,7 @@ pin_switch = ctk.CTkSwitch(top_frame, text="Ghim", variable=pin_var, command=tog
 pin_switch.pack(side="left")
 
 eyedropper_btn = ctk.CTkButton(
-    top_frame, text="Alt+S", width=120, height=32,
+    top_frame, text="🎯 Pick", width=100, height=32,
     fg_color="#6366f1", hover_color="#4f46e5", # Indigo premium
     font=ctk.CTkFont(size=13, weight="bold"),
     command=start_eyedropper
@@ -1147,7 +1147,9 @@ app.after(1200, monitor_clipboard)
 if __name__ == "__main__":
     if keyboard:
         try:
-            keyboard.add_hotkey('alt+s', lambda: app.after(0, start_eyedropper))
+            # Dung suppress=True de ngan chan Windows hien menu he thong (neu co)
+            keyboard.add_hotkey('alt+x', lambda: app.after(0, start_eyedropper), suppress=True)
+            keyboard.add_hotkey('windows+x', lambda: app.after(0, start_eyedropper), suppress=True)
         except Exception:
             pass
     single_instance_check()

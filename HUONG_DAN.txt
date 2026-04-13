@@ -12,7 +12,7 @@ Cach su dung:
 Cach lay mau:
 - Copy bat ky hinh anh nao ban muon (Windows Shift + S).
 - Nhan Ctrl + V tai giao dien App de phan tich.
-- Hoac nhan Alt + S de kich hoat kinh lup chon mau nhanh tai bat ky dau.
+- Hoac nhan Alt + X / Win + X de kich hoat kinh lup chon mau nhanh tai bat ky dau.
 
 Yeu cau:
 - May tinh can co Python.
