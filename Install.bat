@@ -4,7 +4,7 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 echo ==========================================
-echo    COLOR PICKER v2.0 - STARTING
+echo    COLOR PICKER - STARTING
 echo ==========================================
 
 :: 1. Kiem tra Python

@@ -1,56 +1,66 @@
-# Color Picker - Bộ Công Cụ Nhận Diện Màu Sắc Đa Năng
+# Color Picker & Screen Marker - Bộ Công Cụ Tiện Ích Màn Hình
 
 ![Banner](assets/banner.png)
 
-![Version](https://img.shields.io/badge/version-2.3-blue.svg)
+![Version](https://img.shields.io/badge/version-2.4-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.13+-green.svg)
 ![License](https://img.shields.io/badge/license-MIT-orange.svg)
 
-**Color Picker** là một ứng dụng máy tính mạnh mẽ và tinh tế được thiết kế để giúp các nhà thiết kế, lập trình viên và nghệ sĩ dễ dàng nhận diện, phân tích và quản lý màu sắc. Ứng dụng tích hợp hệ thống **Ensemble AI Voting** cùng bảng màu hơn 120 gam màu (shades) chuyên nghiệp.
+Dự án bao gồm 2 công cụ chính: **Color Picker** (Nhận diện màu sắc đa năng với AI 6 lõi) và **Screen Marker** (Công cụ vẽ nhanh trên màn hình).
 
 ## ✨ Tính năng nổi bật
 
-- **🔍 Kính lúp (Eyedropper):** Lấy mã màu chính xác từ bất kỳ điểm nào trên màn hình với độ thu phóng cao.
-- **🤖 Ensemble AI Voting:** Sử dụng 6 thuật toán AI khác nhau để bầu chọn ra tên màu chính xác nhất cho hình ảnh.
-- **📋 Tự động Clipboard:** Tự động phát hiện và phân tích khi bạn có hình ảnh mới trong bộ nhớ tạm (Clipboard).
-- **🎨 120+ Gam màu chuyên nghiệp:** Phân loại chi tiết các sắc thái màu như Ruby, Navy, Emerald, Sunflower, v.v.
-- **⚙️ Cài đặt linh hoạt:** Tùy chỉnh độ trong suốt, chế độ luôn hiện trên cùng (Always on top) và giao diện Sáng/Tối.
-- **🚀 Phím tắt toàn cầu:** Kích hoạt nhanh tính năng lấy màu bằng tổ hợp phím **Alt + X** hoặc **Alt + S**.
+### 🎨 Color Picker v2.4
+- **🤖 Tối ưu hoá với 11 Nhóm Màu Chuẩn:** Hệ thống Ensemble AI Voting phân loại chính xác 11 dải màu (Đỏ, Cam, Vàng, Xanh lá, Xanh dương, Tím, Hồng, Nâu, Xám, Trắng, Đen) thay vì 120 gam màu rườm rà.
+- **🔍 Kính lúp (Eyedropper):** Phóng to điểm ảnh để lấy mã màu chính xác (Kích hoạt bằng `Alt + X` hoặc `Alt + S`).
+- **👤 Tự động nhận diện (Context):** Nhận biết màu da người và màu áo (hiển thị cùng emoji 👤/👗), giúp phân tích đối tượng chính xác hơn.
+- **📋 Tự động Clipboard:** Theo dõi bộ nhớ tạm và tự động phân tích khi có ảnh copy mới.
+
+### 🖍️ Screen Marker
+- **Chạy ngầm nhẹ nhàng:** Hoạt động dưới System Tray, sẵn sàng mọi lúc.
+- **Vẽ nhanh (Draw overlay):** Cố định màn hình hiện tại và vẽ chú thích lên đó ngay lập tức với phím tắt `Alt + D`.
+- **Hoàn tác (Undo):** Dễ dàng xóa các nét vừa vẽ với `Ctrl + Z` hoặc nhấn `Esc` để đóng.
 
 ## 🛠️ Yêu cầu hệ thống
 
-- **Hệ điều hành:** Windows (Đã tối ưu hóa DPI Awareness).
-- **Ngôn ngữ:** Python 3.13 trở lên.
-- **Thư viện chính:** `customtkinter`, `Pillow`, `numpy`, `keyboard`.
+- **Hệ điều hành:** Windows (đã tối ưu hóa DPI Awareness).
+- **Ngôn ngữ:** Python 3.13+.
+- **Thư viện chính:** `customtkinter`, `Pillow`, `numpy`, `keyboard`, `pystray`.
 
 ## 📥 Hướng dẫn cài đặt
 
-1. **Tải mã nguồn:** Tải bản ZIP hoặc clone repository này về máy.
-2. **Cài đặt thư viện:** Chạy tệp `Install.bat` để hệ thống tự động thiết lập môi trường ảo và cài đặt các phụ thuộc cần thiết.
+1. Giải nén thư mục tải về.
+2. Chạy tệp `Install.bat` (chỉ cần chạy một lần duy nhất). Hệ thống sẽ tự động thiết lập Python Virtual Environment và cài đặt các phụ thuộc cần thiết.
    ```powershell
    ./Install.bat
    ```
 
 ## 🚀 Cách sử dụng
 
-- **Dán ảnh (Ctrl + V):** Sao chép bất kỳ tấm ảnh nào và dán vào ứng dụng để AI phân tích màu chu đạo.
-- **Lấy màu nhanh (Alt + X / Alt + S):** Nhấn tổ hợp phím này để hiện kính lúp, di chuyển đến vị trí cần lấy màu và Click chuột trái để chọn.
-- **Quản lý cài đặt:** Nhấn biểu tượng ⚙️ để tùy chỉnh giao diện và độ trong suốt của ứng dụng.
+### Color Picker
+- **Khởi động:** Chạy `ColorPickerV2.4.pyw` (hoặc thông qua shortcut nếu đã build).
+- **Phân tích:** Nhấn `Ctrl + V` để dán ảnh. AI sẽ tự động phân tích qua 6 lõi (Saliency, Frequency, Core, BG Remove, K-Means, LAB Expert).
+- **Cài đặt:** Nhấn biểu tượng ⚙️ góc phải để tùy chỉnh giao diện (Sáng/Tối/Trong suốt).
 
-## ⌨️ Phím tắt nhanh
+### Screen Marker
+- **Khởi động:** Chạy tệp `ScreenMarker.pyw` (sẽ xuất hiện biểu tượng nhỏ ở góc khay hệ thống - System Tray).
+- **Vẽ lên màn hình:** Bấm `Alt + D` để biến chuột thành bút vẽ.
+- **Thoát vẽ:** Nhấn `Esc`. Đóng hoàn toàn bằng cách click chuột phải vào icon ở Tray -> Thoát.
 
-| Phím tắt | Chức năng |
-| :--- | :--- |
-| **Alt + X / Alt + S** | Kích hoạt công cụ lấy màu (Pick) |
-| **Ctrl + V** | Dán ảnh từ Clipboard để phân tích |
-| **Esc / Right Click** | Hủy chế độ Chọn điểm màu |
+## ⌨️ Bảng Phím Tắt Nhanh
+
+| Chức năng | Phím tắt / Thao tác | Ứng dụng |
+| :--- | :--- | :--- |
+| **Bật kính lúp lấy màu** | `Alt + X` hoặc `Alt + S` | Color Picker |
+| **Phân tích ảnh Clipboard** | `Ctrl + V` | Color Picker |
+| **Hủy chọn kính lúp** | `Esc` hoặc `Click chuột phải` | Color Picker |
+| **Bật bút vẽ màn hình** | `Alt + D` | Screen Marker |
+| **Hoàn tác nét vẽ (Undo)** | `Ctrl + Z` | Screen Marker |
+| **Thoát bút vẽ màn hình** | `Esc` | Screen Marker |
 
 ## 📦 Đóng gói ứng dụng (Build .exe)
 
-Nếu bạn muốn đóng gói thành tệp thực thi duy nhất, hãy sử dụng PyInstaller với tệp `.spec` đi kèm:
-```bash
-pyinstaller ColorPicker.spec
-```
+Bạn có thể tạo tệp `.exe` độc lập bằng `pyinstaller` hoặc chạy tệp `Build.bat` để đóng gói tự động thành phần bạn muốn (kiểm tra tệp `.spec` đi kèm).
 
 ## 📄 Giấy phép
 
