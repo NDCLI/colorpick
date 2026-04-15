@@ -11,6 +11,40 @@ import ctypes
 import numpy as np
 import threading
 import ctypes.wintypes
+import atexit
+
+# --- DIEU CHINH TOC DO CHUOT ---
+SPI_GETMOUSESPEED = 112
+SPI_SETMOUSESPEED = 113
+original_mouse_speed = None
+precision_mouse_speed = 3
+
+def get_mouse_speed():
+    try:
+        speed = ctypes.c_int()
+        ctypes.windll.user32.SystemParametersInfoW(SPI_GETMOUSESPEED, 0, ctypes.byref(speed), 0)
+        return speed.value
+    except:
+        return 10
+
+def set_mouse_speed(speed):
+    try:
+        ctypes.windll.user32.SystemParametersInfoW(SPI_SETMOUSESPEED, 0, speed, 0)
+    except: ...
+
+def enable_precision_mouse():
+    global original_mouse_speed
+    if original_mouse_speed is None:
+        original_mouse_speed = get_mouse_speed()
+        set_mouse_speed(precision_mouse_speed)
+
+def restore_mouse_speed():
+    global original_mouse_speed
+    if original_mouse_speed is not None:
+        set_mouse_speed(original_mouse_speed)
+        original_mouse_speed = None
+
+atexit.register(restore_mouse_speed)
 
 # DPI Awareness cho Windows
 try:
@@ -269,7 +303,11 @@ def engine_core(image):
     """Engine 3: Tap trung phan tich 50% vung trung tam anh."""
     w, h = image.size
     cropped = image.crop((w * 0.25, h * 0.25, w * 0.75, h * 0.75))
-    px = np.asarray(cropped.convert("RGB")).reshape(-1, 3)
+    if cropped.mode == "RGBA":
+        px = [tuple(p[:3]) for p in np.asarray(cropped).reshape(-1, 4) if p[3] > 0]
+    else:
+        px = np.asarray(cropped.convert("RGB")).reshape(-1, 3)
+    if not len(px): return "Gray"
     return engine_saliency(px)
 
 
@@ -277,17 +315,28 @@ def engine_bg_remove(image):
     """Engine 4: Loai bo mau vien nen, tap trung mau chu the."""
     w, h = image.size
     edge = []
+    is_rgba = (image.mode == "RGBA")
+    img_data = image.load()
     for x in [0, w - 1]:
         for y in range(h):
-            edge.append(image.getpixel((x, y)))
+            p = img_data[x, y]
+            if not is_rgba or p[3] > 0: edge.append(p[:3] if is_rgba else p)
     for y in [0, h - 1]:
         for x in range(w):
-            edge.append(image.getpixel((x, y)))
+            p = img_data[x, y]
+            if not is_rgba or p[3] > 0: edge.append(p[:3] if is_rgba else p)
 
-    bg_name = collections.Counter(classify_pixel(p[:3])[0] for p in edge).most_common(1)[0][0]
+    if not edge:
+        bg_name = "None"
+    else:
+        bg_name = collections.Counter(classify_pixel(tuple(p[:3]))[0] for p in edge).most_common(1)[0][0]
 
     scores = collections.defaultdict(float)
-    px = np.asarray(image.convert("RGB")).reshape(-1, 3)
+    if is_rgba:
+        px = [tuple(p[:3]) for p in np.asarray(image).reshape(-1, 4) if p[3] > 0]
+    else:
+        px = np.asarray(image.convert("RGB")).reshape(-1, 3)
+        
     for p in px:
         name, sat = classify_pixel(tuple(p))
         w_val = 0.3 if name == bg_name else (1.0 + sat * 2.0)
@@ -297,7 +346,12 @@ def engine_bg_remove(image):
 
 def engine_kmeans(image, k=4, iterations=8):
     """Engine 5: K-Means clustering de tim cum mau chinh."""
-    px = np.asarray(image.convert("RGB"), dtype=np.float32).reshape(-1, 3)
+    is_rgba = (image.mode == "RGBA")
+    if is_rgba:
+        px = np.array([p[:3] for p in np.asarray(image).reshape(-1, 4) if p[3] > 0], dtype=np.float32)
+    else:
+        px = np.asarray(image.convert("RGB"), dtype=np.float32).reshape(-1, 3)
+        
     if len(px) == 0:
         return "Gray"
 
@@ -329,7 +383,12 @@ def engine_kmeans(image, k=4, iterations=8):
 
 def engine_lab_expert(image):
     """Engine 6: So sanh mau trung binh anh voi bang mau chuan LAB/DeltaE."""
-    px = np.asarray(image.convert("RGB"), dtype=np.float32).reshape(-1, 3)
+    is_rgba = (image.mode == "RGBA")
+    if is_rgba:
+        px = np.array([p[:3] for p in np.asarray(image).reshape(-1, 4) if p[3] > 0], dtype=np.float32)
+    else:
+        px = np.asarray(image.convert("RGB"), dtype=np.float32).reshape(-1, 3)
+        
     if len(px) == 0:
         return "Gray"
     mean_rgb = tuple(int(round(v)) for v in px.mean(axis=0))
@@ -352,9 +411,17 @@ def analyze_ensemble(image):
     Phan tich anh bang 6 engine, bau chon ket qua.
     Tra ve danh sach dict: [{name, hex, confidence}, ...]
     """
-    thumb = image.convert("RGB")
+    if image.mode != "RGBA":
+        image = image.convert("RGB")
+    thumb = image.copy()
     thumb.thumbnail((100, 100))
-    px = np.asarray(thumb).reshape(-1, 3)
+    if thumb.mode == "RGBA":
+        px = np.array([p[:3] for p in np.asarray(thumb).reshape(-1, 4) if p[3] > 0])
+    else:
+        px = np.asarray(thumb).reshape(-1, 3)
+        
+    if len(px) == 0:
+        return [{"name": "Black", "hex": "#1C1C1C", "confidence": 100}]
 
     # Thu phieu tu cac engine
     votes = [
@@ -756,6 +823,8 @@ def _launch_eyedropper():
         cleanup_eyedropper()
         return
 
+    enable_precision_mouse()
+    
     scr_w = eyedropper_screenshot.width
     scr_h = eyedropper_screenshot.height
     loupe_size = MAG_RADIUS * 2 + 4
@@ -882,6 +951,7 @@ def _on_cancel(event=None):
 def cleanup_eyedropper():
     global eyedropper_active, eyedropper_overlay, eyedropper_loupe
     global eyedropper_canvas, eyedropper_hex_label, eyedropper_screenshot
+    restore_mouse_speed()
     eyedropper_active = False
     for win in [eyedropper_loupe, eyedropper_overlay]:
         if win is not None:
@@ -952,6 +1022,109 @@ top_frame.pack(fill="x", padx=15, pady=(10, 5))
 
 pin_var = ctk.BooleanVar(value=app_settings.get("topmost", False))
 ctk.CTkSwitch(top_frame, text="Ghim", variable=pin_var, command=toggle_pin).pack(side="left")
+
+# --- KHOANH VUNG CHON DIEM MAU LASSO ---
+lasso_active = False
+lasso_overlay = None
+lasso_canvas = None
+lasso_points = []
+lasso_screenshot = None
+lasso_tk_img = None
+
+def start_lasso():
+    global lasso_active
+    if lasso_active: return
+    lasso_active = True
+    app.withdraw()
+    app.after(200, _launch_lasso)
+
+def _launch_lasso():
+    global lasso_overlay, lasso_canvas, lasso_screenshot, lasso_tk_img, lasso_points
+    lasso_points = []
+    try:
+        lasso_screenshot = ImageGrab.grab()
+    except Exception:
+        cleanup_lasso()
+        return
+
+    enable_precision_mouse()
+    
+    scr_w = lasso_screenshot.width
+    scr_h = lasso_screenshot.height
+
+    overlay = tk.Toplevel()
+    overlay.overrideredirect(True)
+    overlay.attributes("-topmost", True)
+    overlay.geometry(f"{scr_w}x{scr_h}+0+0")
+    lasso_overlay = overlay
+
+    canvas = tk.Canvas(overlay, width=scr_w, height=scr_h, highlightthickness=0, cursor='crosshair')
+    canvas.pack(fill="both", expand=True)
+    lasso_canvas = canvas
+
+    lasso_tk_img = ImageTk.PhotoImage(lasso_screenshot)
+    canvas.create_image(0, 0, anchor="nw", image=lasso_tk_img)
+
+    canvas.bind("<Button-1>", _lasso_on_click)
+    canvas.bind("<B1-Motion>", _lasso_on_drag)
+    canvas.bind("<ButtonRelease-1>", _lasso_on_release)
+    canvas.bind("<Button-3>", _lasso_on_cancel)
+    overlay.bind("<Escape>", _lasso_on_cancel)
+    overlay.focus_force()
+
+def _lasso_on_click(event):
+    global lasso_points
+    lasso_points = [(event.x, event.y)]
+
+def _lasso_on_drag(event):
+    global lasso_points
+    if not lasso_points: return
+    x, y = event.x, event.y
+    px, py = lasso_points[-1]
+    lasso_canvas.create_line(px, py, x, y, fill="#FF00FF", width=2, tags="lasso_line")
+    lasso_points.append((x, y))
+
+def _lasso_on_release(event):
+    global lasso_points, lasso_screenshot
+    if len(lasso_points) > 2:
+        px, py = lasso_points[-1]
+        fx, fy = lasso_points[0]
+        lasso_canvas.create_line(px, py, fx, fy, fill="#FF00FF", width=2, tags="lasso_line")
+        
+        try:
+            mask = Image.new('L', lasso_screenshot.size, 0)
+            ImageDraw.Draw(mask).polygon(lasso_points, fill=255)
+            
+            rgba_img = lasso_screenshot.convert('RGBA')
+            rgba_img.putalpha(mask)
+            
+            xs = [p[0] for p in lasso_points]
+            ys = [p[1] for p in lasso_points]
+            bbox = (min(xs), min(ys), max(xs), max(ys))
+            cropped_img = rgba_img.crop(bbox)
+            
+            cleanup_lasso()
+            render_analysis(cropped_img)
+        except Exception as e:
+            print(f"Lỗi: {e}")
+            cleanup_lasso()
+    else:
+        cleanup_lasso()
+
+def _lasso_on_cancel(event=None):
+    cleanup_lasso()
+
+def cleanup_lasso():
+    global lasso_active, lasso_overlay, lasso_canvas, lasso_screenshot, lasso_tk_img
+    restore_mouse_speed()
+    lasso_active = False
+    if lasso_overlay:
+        try: lasso_overlay.destroy()
+        except: pass
+    lasso_overlay = lasso_canvas = lasso_screenshot = lasso_tk_img = None
+    app.deiconify()
+    app.lift()
+    app.focus_force()
 
 ctk.CTkButton(
     top_frame, text="🎯 Pick", width=80, height=26,
@@ -1067,18 +1240,24 @@ def start_hotkey_listener():
         MOD_ALT = 0x0001
         VK_S = 0x53
         VK_X = 0x58
+        VK_A = 0x41
         user32.RegisterHotKey(None, 1, MOD_ALT, VK_S)
         user32.RegisterHotKey(None, 2, MOD_ALT, VK_X)
+        user32.RegisterHotKey(None, 3, MOD_ALT, VK_A)
         try:
             msg = ctypes.wintypes.MSG()
             while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
                 if msg.message == 0x0312:
-                    app.after(0, start_eyedropper)
+                    if msg.wParam == 1:
+                        app.after(0, start_eyedropper)
+                    elif msg.wParam == 3:
+                        app.after(0, start_lasso)
                 user32.TranslateMessage(ctypes.byref(msg))
                 user32.DispatchMessageW(ctypes.byref(msg))
         finally:
             user32.UnregisterHotKey(None, 1)
             user32.UnregisterHotKey(None, 2)
+            user32.UnregisterHotKey(None, 3)
 
     threading.Thread(target=listener, daemon=True).start()
 
