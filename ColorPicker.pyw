@@ -153,6 +153,8 @@ def classify_pixel(rgb):
     # --- ACHROMATIC ---
     if v < 0.15:
         return "Black", s
+    if v < 0.20 and s < 0.20:
+        return "Black", s
     if v > 0.90 and s < 0.06:
         return "White", s
     if v > 0.85 and s < 0.08:
@@ -635,8 +637,8 @@ def finalize_render(image, results):
     result_color_box1.configure(fg_color=color1["hex"])
     result_label1.configure(text=color1["name"])
     result_confidence1.configure(text=f"{color1['confidence']}%")
-    copy_btn1.configure(text=f"Copy {color1['hex']}")
-    copy_btn1.pack(pady=(6, 0))
+    # copy_btn1.configure(text=f"Copy {color1['hex']}")
+    # copy_btn1.pack(pady=(6, 0))
 
     if len(results) >= 2:
         color2 = results[1]
@@ -644,8 +646,8 @@ def finalize_render(image, results):
         result_color_box2.configure(fg_color=color2["hex"])
         result_label2.configure(text=color2["name"])
         result_confidence2.configure(text=f"{color2['confidence']}%")
-        copy_btn2.configure(text=f"Copy {color2['hex']}")
-        copy_btn2.pack(pady=(6, 0))
+        # copy_btn2.configure(text=f"Copy {color2['hex']}")
+        # copy_btn2.pack(pady=(6, 0))
         color1_frame.pack_configure(side="left", expand=True)
         color2_frame.pack(side="left", expand=True, fill="both", padx=5)
     else:
@@ -662,8 +664,8 @@ def finalize_render(image, results):
         result_color_box3.configure(fg_color=color3["hex"])
         result_label3.configure(text=color3["name"])
         result_confidence3.configure(text=f"{color3['confidence']}%")
-        copy_btn3.configure(text=f"Copy {color3['hex']}")
-        copy_btn3.pack(pady=(6, 0))
+        # copy_btn3.configure(text=f"Copy {color3['hex']}")
+        # copy_btn3.pack(pady=(6, 0))
         color1_frame.pack_configure(side="left", expand=True)
         color3_frame.pack(side="left", expand=True, fill="both", padx=5)
     else:
@@ -1024,9 +1026,8 @@ def render_point_color(rgb, hex_color, color_names):
             seen.add(clean)
     point_color_name_label.configure(text=" / ".join(parts))
 
-    point_copy_btn.configure(text=f"Copy {hex_color}")
-    point_copy_btn.pack(pady=(4, 0))
-    point_color_frame.pack(pady=(2, 0), fill="x", padx=15, before=status_dot)
+    # point_color_copy_btn.pack(pady=(4, 0))  # Hidden - click hex to copy
+    point_color_frame.pack(pady=(2, 0), fill="x", padx=15)
     status_dot.configure(fg_color="#6366f1")
 
 
@@ -1052,11 +1053,11 @@ ctk.set_appearance_mode(current_theme)
 ctk.set_default_color_theme("blue")
 
 app = ctk.CTk()
-app.title("Color Picker v2.5")
-app.geometry("360x485")
+app.title("Color Picker v3.0")
+app.geometry("360x310")
 app.attributes("-alpha", current_opacity)
 app.attributes("-topmost", app_settings.get("topmost", False))
-app.minsize(340, 460)
+app.minsize(340, 290)
 
 # Top toolbar
 top_frame = ctk.CTkFrame(app, fg_color="transparent")
@@ -1190,7 +1191,7 @@ ctk.CTkButton(
 ).pack(side="right", padx=(0, 4))
 
 # Image preview
-image_frame = ctk.CTkFrame(app, width=120, height=120, fg_color="gray20", corner_radius=12)
+image_frame = ctk.CTkFrame(app, width=80, height=80, fg_color="gray20", corner_radius=12)
 # image_frame.pack(pady=(5, 5))
 image_frame.pack_propagate(False)
 image_label = ctk.CTkLabel(image_frame, text="", text_color="gray60", font=ctk.CTkFont(size=11))
@@ -1242,16 +1243,17 @@ ctk.CTkLabel(
 ).pack(anchor="w", padx=5)
 
 point_color_inner = ctk.CTkFrame(point_color_frame, fg_color="transparent")
-point_color_inner.pack(fill="x", padx=5, pady=0)
+point_color_inner.pack(fill="x", padx=5, pady=5)
 
-point_color_box = ctk.CTkFrame(point_color_inner, width=28, height=28, corner_radius=6, fg_color="gray20")
-point_color_box.pack(side="left", padx=(0, 6))
+point_color_box = ctk.CTkFrame(point_color_inner, width=60, height=60, corner_radius=6, fg_color="gray20")
+point_color_box.pack(side="left", padx=(0, 12))
 
 point_color_hex_label = ctk.CTkLabel(
     point_color_inner, text="",
     font=ctk.CTkFont(family="Consolas", size=14, weight="bold")
 )
 point_color_hex_label.pack(side="left", padx=(0, 6))
+point_color_hex_label.bind("<Button-1>", lambda e: copy_point_hex())
 
 point_color_name_label = ctk.CTkLabel(
     point_color_inner, text="",
@@ -1259,14 +1261,15 @@ point_color_name_label = ctk.CTkLabel(
 )
 point_color_name_label.pack(side="left")
 
-point_copy_btn = ctk.CTkButton(
+point_color_copy_btn = ctk.CTkButton(
     point_color_frame, text="Copy HEX", width=80, height=22,
     fg_color="#6366f1", hover_color="#4f46e5", font=ctk.CTkFont(size=10),
     command=copy_point_hex
 )
+# point_color_copy_btn.pack(pady=(5, 0))  # Hidden - click hex to copy
 
 status_dot = ctk.CTkFrame(app, width=10, height=10, corner_radius=5, fg_color="green")
-status_dot.pack(pady=10, side="bottom")
+# status_dot.pack(pady=10, side="bottom")  # Hidden - compact UI
 
 app.bind("<Control-v>", analyze_clipboard_image)
 app.bind("<Control-V>", analyze_clipboard_image)
