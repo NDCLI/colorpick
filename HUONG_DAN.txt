@@ -1,0 +1,24 @@
+==============================================
+   HƯỚNG DẪN SỬ DỤNG BỘ CÔNG CỤ (v2.4)
+==============================================
+A. CAI ĐẶT CHUNG:
+1. Chạy tệp "Install.bat" để cài đặt môi trường.
+   - Lần đầu tiên chạy hoặc sau khi cập nhật mã nguồn (mất khoảng 30s).
+   - Những lần sau ứng dụng sẽ tự nhận diện.
+
+B. COLOR PICKER (Nhận Diện Màu):
+> Khởi động ứng dụng bằng tệp "ColorPickerV2.4.pyw".
+- Cách nhận diện: Copy bất kỳ hình ảnh nào (Windows Shift + S), nhấn Ctrl + V tại giao diện app. Hệ thống AI 6 thuât toán sẽ bầu chọn ra màu chiếm diện tích chủ ưu.
+- Lấy màu từ điểm cụ thể: Nhấn Alt + X hoặc Alt + S bất cứ lúc nào. Màn hình sẽ chuyển sang chế độ kính lúp, di chuyển chuột đến điểm ảnh cần lấy màu rồi nhấp chuột trái. Bấm Esc để hủy.
+
+C. SCREEN MARKER (Công Cụ Vẽ Màn Hình):
+> Khởi động "ScreenMarker.pyw", ứng dụng sẽ thiết lập biểu tượng ngầm bên dưới khay hệ thống (System Tray).
+- Kích hoạt vẽ: Nhấn tổ hợp phím "Alt + D". Giao diện toàn màn hình được khóa lại để vẽ.
+- Xóa nét vừa vẽ (Undo): Nhấn "Ctrl + Z".
+- Tắt bút vẽ: Nhấn "Esc" để đóng giao diện vẽ (sau đó có thể nhấn Alt + D để vẽ trên hình ảnh mới).
+- Thoát hoàn toàn: Click phải biểu tượng Screen Marker dưới khay hệ thống -> "Thoát hoàn toàn".
+
+YÊU CẦU HỆ THỐNG:
+- Windows, Python 3.13+.
+- Đã cài đặt đủ thư viện qua Install.bat.
+----------------------------------------------
