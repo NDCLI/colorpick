@@ -1,0 +1,6 @@
+customtkinter==5.2.2
+Pillow>=10.0.0
+numpy>=2.0.0
+keyboard
+pystray
+requests>=2.25.0
