@@ -1,0 +1,11 @@
+{
+  "name": "colorpicker-root",
+  "private": true,
+  "workspaces": [
+    "web"
+  ],
+  "scripts": {
+    "build": "npm run build -w web",
+    "install-web": "npm install -w web"
+  }
+}
