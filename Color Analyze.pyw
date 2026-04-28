@@ -12,6 +12,14 @@ import numpy as np
 import threading
 import ctypes.wintypes
 import atexit
+import keyboard
+
+# Auto-Update
+try:
+    from updater import check_for_updates
+    HAS_UPDATER = True
+except ImportError:
+    HAS_UPDATER = False
 
 # --- DIEU CHINH TOC DO CHUOT ---
 SPI_GETMOUSESPEED = 112
@@ -57,15 +65,18 @@ except Exception:
 
 # ==========================================
 # v2.5 - LOGIC MAU MOI (11 NHOM MAU CHUAN)
+# Dua tren bang mau tham chieu cua nguoi dung:
+# Red, Orange, Yellow, Green, Blue, Purple,
+# Pink, Brown, Gray, White, Black
 # ==========================================
 
 def single_instance_check():
-    mutex_name = r"Global\ColorPicker_Analyze_Unique_Mutex"
+    mutex_name = r"Global\ColorPicker_v2_Unique_Mutex"
     ctypes.windll.kernel32.CreateMutexW(None, False, mutex_name)
     if ctypes.windll.kernel32.GetLastError() == 183:
         temp_root = ctk.CTk()
         temp_root.withdraw()
-        messagebox.showinfo("Color Analyze", "Ứng dụng đang chạy rồi bạn nhé!")
+        messagebox.showinfo("Color Picker", "Ứng dụng đang chạy rồi bạn nhé!")
         sys.exit(0)
 
 def get_app_dir():
@@ -73,27 +84,34 @@ def get_app_dir():
         return os.path.dirname(sys.executable)
     return os.path.dirname(os.path.abspath(__file__))
 
-SETTINGS_FILE = os.path.join(get_app_dir(), "settings_analyze.json")
+SETTINGS_FILE = os.path.join(get_app_dir(), "settings.json")
 
 def load_settings():
     if os.path.exists(SETTINGS_FILE):
         try:
             with open(SETTINGS_FILE, "r") as f:
-                return json.load(f)
+                s = json.load(f)
+                if "hotkey_pick" not in s: s["hotkey_pick"] = "alt+s"
+                if "hotkey_lasso" not in s: s["hotkey_lasso"] = "alt+a"
+                return s
         except:
             pass
-    return {"topmost": False, "opacity": 1.0, "theme": "System", "auto_clipboard": True}
+    return {"topmost": False, "opacity": 1.0, "theme": "System", "auto_clipboard": True, "hotkey_pick": "alt+s", "hotkey_lasso": "alt+a"}
 
 def save_settings(topmost, opacity, theme="System", auto_clipboard=True):
     try:
+        hk_p = globals().get("current_hotkey_pick", "alt+s")
+        hk_l = globals().get("current_hotkey_lasso", "alt+a")
         with open(SETTINGS_FILE, "w") as f:
             json.dump({"topmost": topmost, "opacity": float(opacity),
-                       "theme": theme, "auto_clipboard": auto_clipboard}, f)
+                       "theme": theme, "auto_clipboard": auto_clipboard,
+                       "hotkey_pick": hk_p, "hotkey_lasso": hk_l}, f)
     except:
         pass
 
 # ==========================================
 # DINH NGHIA 11 NHOM MAU
+# Mau dai dien cho moi nhom (hex hien thi)
 # ==========================================
 
 COLOR_FAMILIES = {
@@ -111,6 +129,7 @@ COLOR_FAMILIES = {
 }
 
 # LAB gia tri tham chieu cho tung nhom mau (Expert Engine)
+# Tinh toan tu mau dai dien cua tung nhom
 LAB_REFERENCE = {
     "Red":    (40.0,  61.5,  45.0),
     "Orange": (62.0,  35.0,  68.0),
@@ -276,6 +295,7 @@ def get_family_hex(name):
 
 # ==========================================
 # CAC ENGINE PHAN TICH (ENSEMBLE)
+# Moi engine tra ve 1 trong 11 ten nhom mau
 # ==========================================
 
 def engine_saliency(pixels):
@@ -283,12 +303,13 @@ def engine_saliency(pixels):
     scores = collections.defaultdict(float)
     for p in pixels:
         name, sat = classify_pixel(tuple(p))
+        # Chromatic colors get saturation boost; White gets neutral weight (not penalized)
         if name in ("Black",):
             weight = 0.5
         elif name in ("Gray",):
             weight = 0.75
         elif name == "White":
-            weight = 1.0
+            weight = 1.0  # White is valid as primary, no penalty
         else:
             weight = 1.0 + sat * 2.0
         scores[name] += weight
@@ -377,12 +398,13 @@ def engine_kmeans(image, k=4, iterations=8):
             continue
         name, sat = classify_pixel(tuple(int(x) for x in c))
         ratio = len(members) / len(sample)
+        # White is no longer penalized; only Black/Gray get slight discount
         if name == "Black":
             penalty = 0.6
         elif name == "Gray":
             penalty = 0.8
         else:
-            penalty = 1.0
+            penalty = 1.0  # White and chromatic colors have full weight
         w_val = ratio * (1.0 + sat * 2.0) * penalty
         scores[name] += w_val
 
@@ -443,6 +465,7 @@ def analyze_ensemble(image):
 
     vote_counts = collections.Counter(votes)
     winner, win_count = vote_counts.most_common(1)[0]
+    # Neu chi co 1 phieu moi engine -> lay engine_saliency lam chuan
     final_color = winner if win_count >= 2 else votes[0]
 
     # Tinh do chinh xac cua ket qua chinh
@@ -454,6 +477,10 @@ def analyze_ensemble(image):
     final_vote_share = vote_counts.get(final_color, 0) / len(votes)
     confidence = min(99, int(round((final_vote_share * 0.6 + final_px_share * 0.4) * 100)))
 
+    # Tim cac mau phu (co the xuat hien song song)
+    # 1. Dua tren tan suat pixel:
+    #    - White/Gray: nguong thap hon (5%) vi de bi bo so voi mau co sac
+    #    - Mau khac: nguong 10%
     secondary = []
     for name, cnt in px_counts.most_common():
         if name == final_color:
@@ -465,21 +492,24 @@ def analyze_ensemble(image):
         if len(secondary) >= 2:
             break
 
+    # 2. Dua tren LAB distance (neu co mau sat lai voi mau chinh)
     mean_arr = px.mean(axis=0)
     mean_rgb = (int(round(mean_arr[0])), int(round(mean_arr[1])), int(round(mean_arr[2])))
     mean_lab = rgb_to_lab(mean_rgb)
 
     dists = sorted((delta_e(mean_lab, ref), name) for name, ref in LAB_REFERENCE.items())
-    for dist, name in dists[1:3]:
+    for dist, name in dists[1:3]:  # Bo qua vi tri 0 (chinh no)
         if name != final_color and name not in secondary:
-            if dists[0][0] > 0 and dist / dists[0][0] < 1.8:
+            if dists[0][0] > 0 and dist / dists[0][0] < 1.8:  # Khoang cach gan
                 secondary.append(name)
             if len(secondary) >= 2:
                 break
 
     secondary = secondary[:2]
 
-    # Safety-net for near-white pixels
+    # Safety-net: if many near-white pixels exist but White is not captured,
+    # force-inject White. Catches light pastel colors (e.g. light blue shirt)
+    # that slip through classify_pixel with s just above threshold.
     if "White" != final_color and "White" not in secondary:
         near_white = 0
         for p in px:
@@ -524,8 +554,28 @@ def analyze_ensemble(image):
     return results
 
 
+def get_top_matches(rgb, threshold=18.0):
+    """
+    Tra ve 1-3 ten nhom mau cho 1 diem anh (cho eyedropper).
+    Ket hop HSV + LAB de co ket qua chinh xac nhat.
+    """
+    hsv_name, _ = classify_pixel(rgb)
+
+    lab_val = rgb_to_lab(rgb)
+    dists = sorted((delta_e(lab_val, ref), name) for name, ref in LAB_REFERENCE.items())
+
+    results = [hsv_name]
+    for dist, name in dists:
+        if name not in results and (dist - dists[0][0]) < threshold:
+            results.append(name)
+        if len(results) >= 3:
+            break
+
+    return results
+
+
 # ==========================================
-# GIAO DIEN (UI) - BAN PHAN TICH VUNG MAU
+# GIAO DIEN (UI) - KHONG THAY DOI LON
 # ==========================================
 
 def copy_hex(index):
@@ -594,6 +644,8 @@ def finalize_render(image, results):
     result_color_box1.configure(fg_color=color1["hex"])
     result_label1.configure(text=color1["name"])
     result_confidence1.configure(text=f"{color1['confidence']}%")
+    # copy_btn1.configure(text=f"Copy {color1['hex']}")
+    # copy_btn1.pack(pady=(6, 0))
 
     if len(results) >= 2:
         color2 = results[1]
@@ -601,6 +653,8 @@ def finalize_render(image, results):
         result_color_box2.configure(fg_color=color2["hex"])
         result_label2.configure(text=color2["name"])
         result_confidence2.configure(text=f"{color2['confidence']}%")
+        # copy_btn2.configure(text=f"Copy {color2['hex']}")
+        # copy_btn2.pack(pady=(6, 0))
         color1_frame.pack_configure(side="left", expand=True)
         color2_frame.pack(side="left", expand=True, fill="both", padx=5)
     else:
@@ -617,6 +671,8 @@ def finalize_render(image, results):
         result_color_box3.configure(fg_color=color3["hex"])
         result_label3.configure(text=color3["name"])
         result_confidence3.configure(text=f"{color3['confidence']}%")
+        # copy_btn3.configure(text=f"Copy {color3['hex']}")
+        # copy_btn3.pack(pady=(6, 0))
         color1_frame.pack_configure(side="left", expand=True)
         color3_frame.pack(side="left", expand=True, fill="both", padx=5)
     else:
@@ -690,7 +746,7 @@ def open_settings():
 
     sw = ctk.CTkToplevel(app)
     sw.title("Cài đặt")
-    sw.geometry("320x400")
+    sw.geometry("320x540")
     sw.resizable(False, False)
     sw.attributes("-topmost", True)
     sw.grab_set()
@@ -751,6 +807,39 @@ def open_settings():
     theme_seg.set({"Light": "Sáng", "Dark": "Tối", "System": "Hệ thống"}[current_theme])
     theme_seg.pack(expand=True, fill="x", pady=5)
 
+    def update_hotkeys(*args):
+        global current_hotkey_pick, current_hotkey_lasso
+        new_pick = pick_mod.get().lower() + "+" + pick_key.get().lower()
+        new_lasso = lasso_mod.get().lower() + "+" + lasso_key.get().lower()
+        current_hotkey_pick = new_pick
+        current_hotkey_lasso = new_lasso
+        save_settings(pin_var.get(), current_opacity, current_theme, auto_clipboard_enabled)
+        rebind_hotkeys()
+
+    ctk.CTkLabel(sw, text="Phím tắt Pick:", font=ctk.CTkFont(size=13, weight="bold")).pack(anchor="w", padx=20, pady=(10, 0))
+    hk_row1 = ctk.CTkFrame(sw, fg_color="transparent")
+    hk_row1.pack(fill="x", padx=15)
+    
+    pick_mod = ctk.CTkComboBox(hk_row1, values=["Alt", "Ctrl", "Shift"], width=80, command=update_hotkeys)
+    pick_mod.set(current_hotkey_pick.split("+")[0].capitalize() if "+" in current_hotkey_pick else "Alt")
+    pick_mod.pack(side="left", padx=(0, 5))
+    
+    pick_key = ctk.CTkComboBox(hk_row1, values=[chr(i) for i in range(65, 91)], width=60, command=update_hotkeys)
+    pick_key.set(current_hotkey_pick.split("+")[-1].upper() if "+" in current_hotkey_pick else "S")
+    pick_key.pack(side="left")
+
+    ctk.CTkLabel(sw, text="Phím tắt Lasso:", font=ctk.CTkFont(size=13, weight="bold")).pack(anchor="w", padx=20, pady=(5, 0))
+    hk_row2 = ctk.CTkFrame(sw, fg_color="transparent")
+    hk_row2.pack(fill="x", padx=15)
+    
+    lasso_mod = ctk.CTkComboBox(hk_row2, values=["Alt", "Ctrl", "Shift"], width=80, command=update_hotkeys)
+    lasso_mod.set(current_hotkey_lasso.split("+")[0].capitalize() if "+" in current_hotkey_lasso else "Alt")
+    lasso_mod.pack(side="left", padx=(0, 5))
+    
+    lasso_key = ctk.CTkComboBox(hk_row2, values=[chr(i) for i in range(65, 91)], width=60, command=update_hotkeys)
+    lasso_key.set(current_hotkey_lasso.split("+")[-1].upper() if "+" in current_hotkey_lasso else "A")
+    lasso_key.pack(side="left")
+
     ctk.CTkButton(
         sw, text="Hoàn tất", width=120, height=32,
         fg_color="#6366f1", hover_color="#4f46e5",
@@ -776,13 +865,250 @@ def reset_app():
     color1_frame.pack_configure(side="top", expand=True)
     color2_frame.pack_forget()
     color3_frame.pack_forget()
+    point_color_hex_label.configure(text="")
+    point_color_name_label.configure(text="")
+    point_color_box.configure(fg_color="gray20")
+    point_copy_btn.pack_forget()
+    point_color_frame.pack_forget()
     status_dot.configure(fg_color="green")
 
 
 # ==========================================
-# KHOANH VUNG CHON MAU LASSO
+# EYEDROPPER (CHON DIEM MAU)
 # ==========================================
 
+eyedropper_active    = False
+eyedropper_overlay   = None
+eyedropper_loupe     = None
+eyedropper_canvas    = None
+eyedropper_hex_label = None
+eyedropper_screenshot = None
+
+MAG_RADIUS     = 45
+MAG_GRID_COUNT = 13
+
+
+def start_eyedropper():
+    global eyedropper_active
+    if eyedropper_active:
+        return
+    eyedropper_active = True
+    app.withdraw()
+    app.after(180, _launch_eyedropper)
+
+
+def _launch_eyedropper():
+    global eyedropper_overlay, eyedropper_loupe, eyedropper_canvas
+    global eyedropper_hex_label, eyedropper_screenshot
+
+    try:
+        eyedropper_screenshot = ImageGrab.grab()
+    except Exception:
+        cleanup_eyedropper()
+        return
+
+    enable_precision_mouse()
+    
+    scr_w = eyedropper_screenshot.width
+    scr_h = eyedropper_screenshot.height
+    loupe_size = MAG_RADIUS * 2 + 4
+
+    overlay = tk.Toplevel()
+    overlay.overrideredirect(True)
+    overlay.attributes("-topmost", True)
+    overlay.attributes("-alpha", 0.01)
+    overlay.geometry(f"{scr_w}x{scr_h}+0+0")
+    overlay.configure(cursor="crosshair", bg="black")
+    eyedropper_overlay = overlay
+
+    loupe = tk.Toplevel()
+    loupe.overrideredirect(True)
+    loupe.attributes("-topmost", True)
+    loupe.attributes("-transparentcolor", "magenta")
+    loupe.configure(bg="magenta")
+    loupe.geometry(f"{loupe_size}x{loupe_size + 28}+0+0")
+    eyedropper_loupe = loupe
+
+    canvas = tk.Canvas(loupe, width=loupe_size, height=loupe_size,
+                       bg="magenta", highlightthickness=0, cursor="none")
+    canvas.pack()
+    eyedropper_canvas = canvas
+
+    hex_lbl = tk.Label(loupe, text="#000000",
+                       font=("Consolas", 10, "bold"),
+                       fg="white", bg="#1a1a1a", padx=6, pady=2)
+    hex_lbl.pack()
+    eyedropper_hex_label = hex_lbl
+
+    overlay.bind("<Motion>",   _on_motion)
+    overlay.bind("<Button-1>", _on_click)
+    overlay.bind("<Button-3>", _on_cancel)
+    overlay.bind("<Escape>",   _on_cancel)
+    overlay.focus_force()
+
+    mx = overlay.winfo_pointerx()
+    my = overlay.winfo_pointery()
+    _move_loupe(mx, my)
+    _draw_loupe(mx, my)
+
+
+def _on_motion(event):
+    _move_loupe(event.x_root, event.y_root)
+    _draw_loupe(event.x_root, event.y_root)
+
+
+def _move_loupe(mx, my):
+    if eyedropper_loupe is None:
+        return
+    loupe_size = MAG_RADIUS * 2 + 4
+    eyedropper_loupe.geometry(f"+{mx - loupe_size // 2}+{my - loupe_size // 2}")
+
+
+def _draw_loupe(mx, my):
+    if eyedropper_screenshot is None or eyedropper_canvas is None:
+        return
+    scr_w = eyedropper_screenshot.width
+    scr_h = eyedropper_screenshot.height
+    half = MAG_GRID_COUNT // 2
+    loupe_size = MAG_RADIUS * 2 + 4
+
+    left   = max(0, mx - half)
+    top    = max(0, my - half)
+    right  = min(scr_w, mx + half + 1)
+    bottom = min(scr_h, my + half + 1)
+
+    crop   = eyedropper_screenshot.crop((left, top, right, bottom))
+    zoomed = crop.resize((loupe_size, loupe_size), Image.NEAREST)
+
+    mask = Image.new("L", (loupe_size, loupe_size), 0)
+    ImageDraw.Draw(mask).ellipse([2, 2, loupe_size - 3, loupe_size - 3], fill=255)
+    final = Image.new("RGB", (loupe_size, loupe_size), (255, 0, 255))
+    final.paste(zoomed, (0, 0), mask)
+
+    draw = ImageDraw.Draw(final)
+    cell = loupe_size / MAG_GRID_COUNT
+    for i in range(MAG_GRID_COUNT + 1):
+        p = int(i * cell)
+        draw.line([(p, 0), (p, loupe_size)], fill=(60, 60, 60), width=1)
+        draw.line([(0, p), (loupe_size, p)], fill=(60, 60, 60), width=1)
+
+    cx0 = int(half * cell);     cy0 = int(half * cell)
+    cx1 = int((half + 1) * cell); cy1 = int((half + 1) * cell)
+    draw.rectangle([cx0 - 1, cy0 - 1, cx1 + 1, cy1 + 1], outline="#000000", width=1)
+    draw.rectangle([cx0,     cy0,     cx1,     cy1    ], outline="#FFFFFF", width=1)
+
+    final2 = Image.new("RGB", (loupe_size, loupe_size), (255, 0, 255))
+    final2.paste(final, (0, 0), mask)
+    ImageDraw.Draw(final2).ellipse([1, 1, loupe_size - 2, loupe_size - 2], outline="#333333", width=2)
+    ImageDraw.Draw(final2).ellipse([0, 0, loupe_size - 1, loupe_size - 1], outline="#888888", width=1)
+
+    tk_img = ImageTk.PhotoImage(final2)
+    eyedropper_canvas.delete("all")
+    eyedropper_canvas.create_image(loupe_size // 2, loupe_size // 2, image=tk_img)
+    eyedropper_canvas._ref = tk_img
+
+    try:
+        r, g, b = eyedropper_screenshot.getpixel((mx, my))[:3]
+        eyedropper_hex_label.configure(text=f"#{r:02X}{g:02X}{b:02X}")
+    except Exception:
+        pass
+
+
+def _on_click(event):
+    mx, my = event.x_root, event.y_root
+    try:
+        px = eyedropper_screenshot.getpixel((mx, my))
+        r, g, b = px[0], px[1], px[2]
+    except Exception:
+        cleanup_eyedropper()
+        return
+    hex_color = f"#{r:02X}{g:02X}{b:02X}"
+    names = get_top_matches((r, g, b), threshold=18.0)
+    cleanup_eyedropper()
+    render_point_color((r, g, b), hex_color, names)
+
+
+def _on_cancel(event=None):
+    cleanup_eyedropper()
+
+
+def cleanup_eyedropper():
+    global eyedropper_active, eyedropper_overlay, eyedropper_loupe
+    global eyedropper_canvas, eyedropper_hex_label, eyedropper_screenshot
+    restore_mouse_speed()
+    eyedropper_active = False
+    for win in [eyedropper_loupe, eyedropper_overlay]:
+        if win is not None:
+            try:
+                win.destroy()
+            except Exception:
+                pass
+    eyedropper_overlay = eyedropper_loupe = None
+    eyedropper_canvas  = eyedropper_hex_label = None
+    eyedropper_screenshot = None
+    app.deiconify()
+    app.lift()
+    app.focus_force()
+
+
+def render_point_color(rgb, hex_color, color_names):
+    global picked_point_color
+    picked_point_color = hex_color
+    point_color_box.configure(fg_color=hex_color)
+    point_color_hex_label.configure(text=hex_color)
+
+    parts = []
+    seen = set()
+    for name in color_names:
+        clean = name.upper()
+        if clean not in seen:
+            parts.append(clean)
+            seen.add(clean)
+    point_color_name_label.configure(text=" / ".join(parts))
+
+    # point_color_copy_btn.pack(pady=(4, 0))  # Hidden - click hex to copy
+    point_color_frame.pack(pady=(2, 0), fill="x", padx=15)
+    status_dot.configure(fg_color="#6366f1")
+
+
+def copy_point_hex():
+    if picked_point_color:
+        app.clipboard_clear()
+        app.clipboard_append(picked_point_color)
+        app.update()
+        status_dot.configure(fg_color="dodgerblue")
+
+
+# ==========================================
+# KHOI TAO UI
+# ==========================================
+
+picked_point_color = None
+app_settings = load_settings()
+current_opacity = app_settings.get("opacity", 1.0)
+current_theme   = app_settings.get("theme", "System")
+auto_clipboard_enabled = app_settings.get("auto_clipboard", True)
+current_hotkey_pick = app_settings.get("hotkey_pick", "alt+s")
+current_hotkey_lasso = app_settings.get("hotkey_lasso", "alt+a")
+
+ctk.set_appearance_mode(current_theme)
+ctk.set_default_color_theme("blue")
+
+app = ctk.CTk()
+app.title("Color Picker v3.1")
+app.geometry("360x310")
+app.attributes("-alpha", current_opacity)
+app.attributes("-topmost", app_settings.get("topmost", False))
+app.minsize(340, 290)
+
+# Top toolbar
+top_frame = ctk.CTkFrame(app, fg_color="transparent")
+top_frame.pack(fill="x", padx=15, pady=(10, 5))
+
+pin_var = ctk.BooleanVar(value=app_settings.get("topmost", False))
+ctk.CTkSwitch(top_frame, text="Ghim", variable=pin_var, command=toggle_pin).pack(side="left")
+
+# --- KHOANH VUNG CHON DIEM MAU LASSO ---
 lasso_active = False
 lasso_overlay = None
 lasso_canvas = None
@@ -885,39 +1211,11 @@ def cleanup_lasso():
     app.lift()
     app.focus_force()
 
-
-# ==========================================
-# KHOI TAO UI
-# ==========================================
-
-picked_point_color = None
-app_settings = load_settings()
-current_opacity = app_settings.get("opacity", 1.0)
-current_theme   = app_settings.get("theme", "System")
-auto_clipboard_enabled = app_settings.get("auto_clipboard", True)
-
-ctk.set_appearance_mode(current_theme)
-ctk.set_default_color_theme("blue")
-
-app = ctk.CTk()
-app.title("Color Analyze v3.0")
-app.geometry("360x310")
-app.attributes("-alpha", current_opacity)
-app.attributes("-topmost", app_settings.get("topmost", False))
-app.minsize(340, 290)
-
-# Top toolbar
-top_frame = ctk.CTkFrame(app, fg_color="transparent")
-top_frame.pack(fill="x", padx=15, pady=(10, 5))
-
-pin_var = ctk.BooleanVar(value=app_settings.get("topmost", False))
-ctk.CTkSwitch(top_frame, text="Ghim", variable=pin_var, command=toggle_pin).pack(side="left")
-
 ctk.CTkButton(
-    top_frame, text="✏️Vẽ", width=50, height=25,
+    top_frame, text="🎯 Pick", width=80, height=26,
     fg_color="#6366f1", hover_color="#4f46e5",
     font=ctk.CTkFont(size=12, weight="bold"),
-    command=start_lasso
+    command=start_eyedropper
 ).pack(side="left", padx=8)
 
 ctk.CTkButton(
@@ -978,44 +1276,74 @@ result_confidence3.pack()
 copy_btn3 = ctk.CTkButton(color3_frame, text="Copy HEX", width=80, height=22,
                            font=ctk.CTkFont(size=10), command=lambda: copy_hex(2))
 
-status_dot = ctk.CTkFrame(app, width=10, height=10, corner_radius=5, fg_color="green")
+# Point color picked
+point_color_frame = ctk.CTkFrame(app, fg_color="transparent")
 
-# Hotkey label
-hotkey_label = ctk.CTkLabel(
-    app, text="⌨️ Alt+A: Vẽ |  Ctrl+V: Dán ảnh",
-    font=ctk.CTkFont(size=11), text_color="gray60"
+ctk.CTkLabel(
+    point_color_frame, text="🎯 Color Picked:",
+    font=ctk.CTkFont(size=12, weight="bold"), text_color="gray70"
+).pack(anchor="w", padx=5)
+
+point_color_inner = ctk.CTkFrame(point_color_frame, fg_color="transparent")
+point_color_inner.pack(fill="x", padx=5, pady=5)
+
+point_color_box = ctk.CTkFrame(point_color_inner, width=60, height=60, corner_radius=6, fg_color="gray20")
+point_color_box.pack(side="left", padx=(0, 12))
+
+point_color_hex_label = ctk.CTkLabel(
+    point_color_inner, text="",
+    font=ctk.CTkFont(family="Consolas", size=14, weight="bold")
 )
-hotkey_label.pack(pady=(5, 0))
+point_color_hex_label.pack(side="left", padx=(0, 6))
+point_color_hex_label.bind("<Button-1>", lambda e: copy_point_hex())
+
+point_color_name_label = ctk.CTkLabel(
+    point_color_inner, text="",
+    font=ctk.CTkFont(size=12), text_color="gray70"
+)
+point_color_name_label.pack(side="left")
+
+point_color_copy_btn = ctk.CTkButton(
+    point_color_frame, text="Copy HEX", width=80, height=22,
+    fg_color="#6366f1", hover_color="#4f46e5", font=ctk.CTkFont(size=10),
+    command=copy_point_hex
+)
+# point_color_copy_btn.pack(pady=(5, 0))  # Hidden - click hex to copy
+
+status_dot = ctk.CTkFrame(app, width=10, height=10, corner_radius=5, fg_color="green")
+# status_dot.pack(pady=10, side="bottom")  # Hidden - compact UI
 
 app.bind("<Control-v>", analyze_clipboard_image)
 app.bind("<Control-V>", analyze_clipboard_image)
 app.after(1200, monitor_clipboard)
 
 # ==========================================
-# WIN32 HOTKEY LISTENER (Alt+A)
+# WIN32 HOTKEY LISTENER (Alt+S / Alt+A)
 # ==========================================
 
-def start_hotkey_listener():
-    def listener():
-        user32 = ctypes.windll.user32
-        MOD_ALT = 0x0001
-        VK_A = 0x41
-        user32.RegisterHotKey(None, 3, MOD_ALT, VK_A)
-        try:
-            msg = ctypes.wintypes.MSG()
-            while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
-                if msg.message == 0x0312:
-                    if msg.wParam == 3:
-                        app.after(0, start_lasso)
-                user32.TranslateMessage(ctypes.byref(msg))
-                user32.DispatchMessageW(ctypes.byref(msg))
-        finally:
-            user32.UnregisterHotKey(None, 3)
+def rebind_hotkeys():
+    try:
+        keyboard.unhook_all_hotkeys()
+    except: pass
+    try:
+        keyboard.add_hotkey(current_hotkey_pick, lambda: app.after(0, start_eyedropper), suppress=True)
+    except Exception as e:
+        print(f"Error binding pick hotkey: {e}")
+    try:
+        keyboard.add_hotkey(current_hotkey_lasso, lambda: app.after(0, start_lasso), suppress=True)
+    except Exception as e:
+        print(f"Error binding lasso hotkey: {e}")
 
-    threading.Thread(target=listener, daemon=True).start()
+def start_hotkey_listener():
+    rebind_hotkeys()
 
 
 if __name__ == "__main__":
     single_instance_check()
     start_hotkey_listener()
+    
+    # Kiểm tra cập nhật trong thread riêng (không block UI)
+    if HAS_UPDATER:
+        threading.Thread(target=check_for_updates, daemon=True).start()
+    
     app.mainloop()

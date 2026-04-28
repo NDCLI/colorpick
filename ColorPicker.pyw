@@ -12,6 +12,7 @@ import numpy as np
 import threading
 import ctypes.wintypes
 import atexit
+import keyboard
 
 # Auto-Update
 try:
@@ -89,16 +90,22 @@ def load_settings():
     if os.path.exists(SETTINGS_FILE):
         try:
             with open(SETTINGS_FILE, "r") as f:
-                return json.load(f)
+                s = json.load(f)
+                if "hotkey_pick" not in s: s["hotkey_pick"] = "alt+s"
+                if "hotkey_lasso" not in s: s["hotkey_lasso"] = "alt+a"
+                return s
         except:
             pass
-    return {"topmost": False, "opacity": 1.0, "theme": "System", "auto_clipboard": True}
+    return {"topmost": False, "opacity": 1.0, "theme": "System", "auto_clipboard": True, "hotkey_pick": "alt+s", "hotkey_lasso": "alt+a"}
 
 def save_settings(topmost, opacity, theme="System", auto_clipboard=True):
     try:
+        hk_p = globals().get("current_hotkey_pick", "alt+s")
+        hk_l = globals().get("current_hotkey_lasso", "alt+a")
         with open(SETTINGS_FILE, "w") as f:
             json.dump({"topmost": topmost, "opacity": float(opacity),
-                       "theme": theme, "auto_clipboard": auto_clipboard}, f)
+                       "theme": theme, "auto_clipboard": auto_clipboard,
+                       "hotkey_pick": hk_p, "hotkey_lasso": hk_l}, f)
     except:
         pass
 
@@ -739,7 +746,7 @@ def open_settings():
 
     sw = ctk.CTkToplevel(app)
     sw.title("Cài đặt")
-    sw.geometry("320x400")
+    sw.geometry("320x540")
     sw.resizable(False, False)
     sw.attributes("-topmost", True)
     sw.grab_set()
@@ -799,6 +806,39 @@ def open_settings():
     )
     theme_seg.set({"Light": "Sáng", "Dark": "Tối", "System": "Hệ thống"}[current_theme])
     theme_seg.pack(expand=True, fill="x", pady=5)
+
+    def update_hotkeys(*args):
+        global current_hotkey_pick, current_hotkey_lasso
+        new_pick = pick_mod.get().lower() + "+" + pick_key.get().lower()
+        new_lasso = lasso_mod.get().lower() + "+" + lasso_key.get().lower()
+        current_hotkey_pick = new_pick
+        current_hotkey_lasso = new_lasso
+        save_settings(pin_var.get(), current_opacity, current_theme, auto_clipboard_enabled)
+        rebind_hotkeys()
+
+    ctk.CTkLabel(sw, text="Phím tắt Pick:", font=ctk.CTkFont(size=13, weight="bold")).pack(anchor="w", padx=20, pady=(10, 0))
+    hk_row1 = ctk.CTkFrame(sw, fg_color="transparent")
+    hk_row1.pack(fill="x", padx=15)
+    
+    pick_mod = ctk.CTkComboBox(hk_row1, values=["Alt", "Ctrl", "Shift"], width=80, command=update_hotkeys)
+    pick_mod.set(current_hotkey_pick.split("+")[0].capitalize() if "+" in current_hotkey_pick else "Alt")
+    pick_mod.pack(side="left", padx=(0, 5))
+    
+    pick_key = ctk.CTkComboBox(hk_row1, values=[chr(i) for i in range(65, 91)], width=60, command=update_hotkeys)
+    pick_key.set(current_hotkey_pick.split("+")[-1].upper() if "+" in current_hotkey_pick else "S")
+    pick_key.pack(side="left")
+
+    ctk.CTkLabel(sw, text="Phím tắt Lasso:", font=ctk.CTkFont(size=13, weight="bold")).pack(anchor="w", padx=20, pady=(5, 0))
+    hk_row2 = ctk.CTkFrame(sw, fg_color="transparent")
+    hk_row2.pack(fill="x", padx=15)
+    
+    lasso_mod = ctk.CTkComboBox(hk_row2, values=["Alt", "Ctrl", "Shift"], width=80, command=update_hotkeys)
+    lasso_mod.set(current_hotkey_lasso.split("+")[0].capitalize() if "+" in current_hotkey_lasso else "Alt")
+    lasso_mod.pack(side="left", padx=(0, 5))
+    
+    lasso_key = ctk.CTkComboBox(hk_row2, values=[chr(i) for i in range(65, 91)], width=60, command=update_hotkeys)
+    lasso_key.set(current_hotkey_lasso.split("+")[-1].upper() if "+" in current_hotkey_lasso else "A")
+    lasso_key.pack(side="left")
 
     ctk.CTkButton(
         sw, text="Hoàn tất", width=120, height=32,
@@ -1048,12 +1088,14 @@ app_settings = load_settings()
 current_opacity = app_settings.get("opacity", 1.0)
 current_theme   = app_settings.get("theme", "System")
 auto_clipboard_enabled = app_settings.get("auto_clipboard", True)
+current_hotkey_pick = app_settings.get("hotkey_pick", "alt+s")
+current_hotkey_lasso = app_settings.get("hotkey_lasso", "alt+a")
 
 ctk.set_appearance_mode(current_theme)
 ctk.set_default_color_theme("blue")
 
 app = ctk.CTk()
-app.title("Color Picker v3.0")
+app.title("Color Picker v3.1")
 app.geometry("360x310")
 app.attributes("-alpha", current_opacity)
 app.attributes("-topmost", app_settings.get("topmost", False))
@@ -1279,29 +1321,21 @@ app.after(1200, monitor_clipboard)
 # WIN32 HOTKEY LISTENER (Alt+S / Alt+A)
 # ==========================================
 
-def start_hotkey_listener():
-    def listener():
-        user32 = ctypes.windll.user32
-        MOD_ALT = 0x0001
-        VK_S = 0x53
-        VK_A = 0x41
-        user32.RegisterHotKey(None, 1, MOD_ALT, VK_S)
-        user32.RegisterHotKey(None, 3, MOD_ALT, VK_A)
-        try:
-            msg = ctypes.wintypes.MSG()
-            while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
-                if msg.message == 0x0312:
-                    if msg.wParam == 1:
-                        app.after(0, start_eyedropper)
-                    elif msg.wParam == 3:
-                        app.after(0, start_lasso)
-                user32.TranslateMessage(ctypes.byref(msg))
-                user32.DispatchMessageW(ctypes.byref(msg))
-        finally:
-            user32.UnregisterHotKey(None, 1)
-            user32.UnregisterHotKey(None, 3)
+def rebind_hotkeys():
+    try:
+        keyboard.unhook_all_hotkeys()
+    except: pass
+    try:
+        keyboard.add_hotkey(current_hotkey_pick, lambda: app.after(0, start_eyedropper), suppress=True)
+    except Exception as e:
+        print(f"Error binding pick hotkey: {e}")
+    try:
+        keyboard.add_hotkey(current_hotkey_lasso, lambda: app.after(0, start_lasso), suppress=True)
+    except Exception as e:
+        print(f"Error binding lasso hotkey: {e}")
 
-    threading.Thread(target=listener, daemon=True).start()
+def start_hotkey_listener():
+    rebind_hotkeys()
 
 
 if __name__ == "__main__":
