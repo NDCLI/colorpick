@@ -1,4 +1,4 @@
-# Color Picker & Screen Marker — Bộ Công Cụ Tiện Ích Màn Hình
+# Color Picker & Screen Marker — Bộ Công Cụ Tìm Màu
 
 ![Banner](assets/banner.png)
 
