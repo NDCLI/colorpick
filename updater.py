@@ -40,7 +40,16 @@ def log_message(message):
         pass
 
 def find_app_file():
-    """Tìm file .pyw app (loại trừ updater.py)"""
+    """Tìm file .pyw app (ưu tiên file đang thực thi)"""
+    try:
+        # sys.argv[0] chứa đường dẫn file đang chạy
+        main_file = os.path.abspath(sys.argv[0])
+        if main_file.endswith(".pyw") and os.path.exists(main_file):
+            return main_file
+    except Exception:
+        pass
+
+    # Fallback: Tìm file .pyw đầu tiên trong thư mục
     app_dir = os.path.dirname(__file__)
     for file in os.listdir(app_dir):
         if file.endswith(".pyw") and "updater" not in file:
@@ -52,16 +61,9 @@ def get_latest_release():
     try:
         url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
         headers = {"Accept": "application/vnd.github.v3+json"}
-        response = requests.get(url, timeout=5, headers=headers)
+        response = requests.get(url, timeout=10, headers=headers)
         response.raise_for_status()
-        log_message(f"GitHub API response OK: {response.status_code}")
         return response.json()
-    except requests.exceptions.ConnectionError as e:
-        log_message(f"Connection error: {e}")
-        return None
-    except requests.exceptions.Timeout:
-        log_message("GitHub API timeout")
-        return None
     except Exception as e:
         log_message(f"Error fetching release: {e}")
         return None
@@ -69,13 +71,12 @@ def get_latest_release():
 def parse_version(version_str):
     """Chuyển đổi string phiên bản sang tuple để so sánh"""
     try:
-        # Loại bỏ 'v' hoặc 'V' nếu có (v2.4 hoặc V2.4 -> 2.4)
         version_str = version_str.lstrip('vV')
         return tuple(map(int, version_str.split('.')))
     except:
         return (0,)
 
-def show_update_dialog():
+def show_update_dialog(version_name):
     """Hiển thị dialog hỏi người dùng có muốn cập nhật"""
     try:
         import tkinter as tk
@@ -83,10 +84,11 @@ def show_update_dialog():
         
         root = tk.Tk()
         root.withdraw()
+        root.attributes("-topmost", True)
         
         result = messagebox.askokcancel(
             "Cập nhật phiên bản",
-            "Có phiên bản mới của Color Picker!\n\n"
+            f"Có phiên bản mới {version_name} của Color Picker!\n\n"
             "Bạn có muốn cập nhật ngay không?\n"
             "(Ứng dụng sẽ khởi động lại sau khi cập nhật)"
         )
@@ -98,20 +100,13 @@ def show_update_dialog():
 def download_file(url, filepath):
     """Tải file từ URL"""
     try:
-        log_message(f"Downloading from: {url}")
-        response = requests.get(url, timeout=30, stream=True)
+        response = requests.get(url, timeout=60, stream=True)
         response.raise_for_status()
-        
-        total_size = int(response.headers.get('content-length', 0))
-        downloaded = 0
         
         with open(filepath, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
                 if chunk:
                     f.write(chunk)
-                    downloaded += len(chunk)
-        
-        log_message(f"Downloaded {downloaded} bytes to {filepath}")
         return True
     except Exception as e:
         log_message(f"Download error: {e}")
@@ -121,11 +116,8 @@ def backup_current_version():
     """Sao lưu phiên bản hiện tại"""
     try:
         os.makedirs(BACKUP_DIR, exist_ok=True)
-        
-        # Tìm file app hiện tại
         current_file = find_app_file()
         if not current_file or not os.path.exists(current_file):
-            log_message("ERROR: Current app file not found for backup")
             return None
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -133,58 +125,48 @@ def backup_current_version():
         backup_file = os.path.join(BACKUP_DIR, f"{app_filename}_backup_{timestamp}.pyw")
         
         shutil.copy2(current_file, backup_file)
-        log_message(f"Backup created: {backup_file}")
         return backup_file
     except Exception as e:
         log_message(f"Backup error: {e}")
         return None
 
-def update_app(download_url):
+def update_app(download_url, status_callback=None):
     """Cập nhật ứng dụng"""
+    def set_status(msg):
+        if status_callback: status_callback(msg)
+        log_message(msg)
+
     try:
-        log_message("⏳ Downloading update...")
-        
-        # Tìm file app hiện tại
+        set_status("⏳ Đang tải bản cập nhật...")
         current_file = find_app_file()
         if not current_file:
-            log_message("ERROR: Could not find app file to update")
             return False
         
-        log_message(f"Found app file: {current_file}")
-        
-        # Sao lưu file cũ
         backup_file = backup_current_version()
-        
-        # Tải file mới
+        if not backup_file:
+            set_status("❌ Lỗi: Không thể sao lưu file cũ")
+            return False
+
         app_filename = os.path.basename(current_file)
         temp_file = os.path.join(os.path.dirname(__file__), f"{app_filename}_update")
+        
         if not download_file(download_url, temp_file):
-            log_message("Download failed")
+            set_status("❌ Lỗi: Tải xuống thất bại")
             return False
         
-        log_message(f"Downloaded to: {temp_file}")
-        
-        # Thay thế file cũ (copy + delete để tránh permission issues)
         try:
             shutil.copy2(temp_file, current_file)
             os.remove(temp_file)
-            log_message(f"Update complete: {current_file}")
-        except Exception as e:
-            log_message(f"Copy/Replace error: {e}")
-            # Fallback: dùng move
+        except Exception:
             try:
                 shutil.move(temp_file, current_file)
-                log_message("Update complete (via move)")
-            except Exception as e2:
-                log_message(f"Move error: {e2}")
+            except Exception as e:
+                set_status(f"❌ Lỗi ghi đè file: {e}")
                 return False
         
-        log_message("✅ Update successful!")
         return True
     except Exception as e:
-        log_message(f"ERROR in update_app: {e}")
-        import traceback
-        log_message(f"Traceback: {traceback.format_exc()}")
+        set_status(f"❌ Lỗi hệ thống: {e}")
         return False
 
 def record_check_time():
@@ -195,90 +177,62 @@ def record_check_time():
     except:
         pass
 
-def should_check_update():
-    """Kiểm tra xem có nên kiểm tra cập nhật ngay không"""
-    # Kiểm tra mỗi lần khởi động (có thể thêm logic kiểm tra thời gian nếu muốn)
-    return True
-
-def check_for_updates():
+def check_for_updates(status_callback=None):
     """Hàm chính: Kiểm tra và cập nhật nếu cần"""
+    def set_status(msg):
+        if status_callback: status_callback(msg)
+        log_message(msg)
+
     try:
-        # Kiểm tra xem có nên kiểm tra không
-        if not should_check_update():
-            log_message("Skip update check")
-            return
-        
-        log_message("=== Starting update check ===")
+        set_status("🔍 Đang kiểm tra cập nhật...")
         record_check_time()
         
-        # Lấy thông tin release mới nhất
         release = get_latest_release()
         if not release:
-            log_message("No release info found from GitHub")
+            set_status("⚠️ Không thể kết nối máy chủ cập nhật")
             return
         
-        latest_version = parse_version(release.get("tag_name", "0.0"))
-        current_version = parse_version(get_current_version())
+        tag_name = release.get("tag_name", "0.0")
+        latest_version = parse_version(tag_name)
+        current_version_str = get_current_version()
+        current_version = parse_version(current_version_str)
         
-        log_message(f"Latest version: {release['tag_name']}, Current version: {get_current_version()}")
-        
-        # So sánh phiên bản
         if latest_version > current_version:
-            log_message(f"New version available: {release['tag_name']}")
+            set_status(f"✨ Có bản cập nhật mới: {tag_name}")
             
-            # Hỏi người dùng
-            if show_update_dialog():
-                log_message("User accepted update")
-                # Tìm file .pyw trong release assets
+            if show_update_dialog(tag_name):
                 download_url = None
                 for asset in release.get("assets", []):
                     if asset["name"].endswith(".pyw"):
                         download_url = asset["browser_download_url"]
-                        log_message(f"Found asset: {asset['name']}")
                         break
                 
                 if download_url:
-                    if update_app(download_url):
-                        # Cập nhật version.txt để không hỏi cập nhật lại lần tới
+                    if update_app(download_url, status_callback):
                         try:
-                            new_version = release.get("tag_name", "0.0").lstrip('vV')
+                            # Cập nhật version.txt
+                            new_version = tag_name.lstrip('vV')
                             with open(VERSION_FILE, 'w') as f:
                                 f.write(new_version)
-                            log_message(f"Updated version file to: {new_version}")
-                        except Exception as e:
-                            log_message(f"Warning: Could not update version file: {e}")
+                        except: pass
                         
-                        # Khởi động lại ứng dụng
-                        log_message("Update successful, restarting app...")
-                        
-                        # Tìm file app hiện tại
+                        set_status("✅ Cập nhật thành công! Đang khởi động lại...")
                         app_file = find_app_file()
-                        if not app_file:
-                            log_message("ERROR: Could not find app file")
-                            return
-                        
-                        log_message(f"Restarting app: {app_file}")
-                        
-                        # Chờ trước khi restart
-                        time.sleep(1)
-                        
-                        # Start app mới trong process mới
+                        time.sleep(1.5)
                         subprocess.Popen([sys.executable, app_file])
-                        
-                        # Force exit process hiện tại (để app cũ không chiếm mutex)
-                        log_message("Forcing main process exit...")
                         os._exit(0)
+                    else:
+                        set_status("❌ Cập nhật thất bại")
                 else:
-                    log_message("ERROR: No .pyw file found in release assets")
+                    set_status("❌ Lỗi: Không thấy file cài đặt trên GitHub")
             else:
-                log_message("User declined update")
+                set_status("Đã hủy cập nhật")
         else:
-            log_message("Already on latest version")
+            set_status("🚀 Ứng dụng đã ở bản mới nhất")
     
     except Exception as e:
-        log_message(f"ERROR: {str(e)}")
-        import traceback
-        log_message(f"Traceback: {traceback.format_exc()}")
+        set_status(f"❌ Lỗi: {str(e)}")
+
 
 if __name__ == "__main__":
     # Test
