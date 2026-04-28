@@ -1,0 +1,28 @@
+# Environments
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Distribution / Build
+dist/
+build/
+*.spec
+*.exe
+
+# Assets (Excluded as per user request)
+mamau.jpg
+
+# Logs and temporary files
+*.log
+error.log
+test_*.py
+ColorPickerV2_2.py
+test_analysis.py
+test_clipboard.py
+
+# Settings
+settings.json
