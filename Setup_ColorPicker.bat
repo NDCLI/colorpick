@@ -8,7 +8,7 @@ setlocal enabledelayedexpansion
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo [!] Loi: Script nay yeu cau quyen Administrator.
-    echo [*] Dang yeu cau quyen admin...
+    echo [*] Dang yeu cau quyen Administrator...
     
     :: Tạo một VBS tạm thời để chạy lại script với quyền admin
     set "TEMP_VBS=%temp%\elevate.vbs"
