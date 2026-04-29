@@ -15,10 +15,10 @@ if %errorlevel% neq 0 (
     (
         echo Set objShell = CreateObject("Shell.Application"^)
         echo objShell.ShellExecute "cmd.exe", "/c ""%~f0""", "", "runas", 1
-    ) > "%TEMP_VBS%"
+    ) > "!TEMP_VBS!"
     
-    cscript.exe "%TEMP_VBS%"
-    del "%TEMP_VBS%"
+    cscript.exe "!TEMP_VBS!"
+    if exist "!TEMP_VBS!" del "!TEMP_VBS!"
     exit /b
 )
 
