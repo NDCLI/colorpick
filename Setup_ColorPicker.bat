@@ -2,6 +2,28 @@
 title Setup Color Picker Suite
 setlocal enabledelayedexpansion
 
+:: ========================================================
+:: Kiểm tra quyền Administrator
+:: ========================================================
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [!] Loi: Script nay yeu cau quyen Administrator.
+    echo [*] Dang yeu cau quyen admin...
+    
+    :: Tạo một VBS tạm thời để chạy lại script với quyền admin
+    set "TEMP_VBS=%temp%\elevate.vbs"
+    (
+        echo Set objShell = CreateObject("Shell.Application"^)
+        echo objShell.ShellExecute "cmd.exe", "/c ""%~f0""", "", "runas", 1
+    ) > "%TEMP_VBS%"
+    
+    cscript.exe "%TEMP_VBS%"
+    del "%TEMP_VBS%"
+    exit /b
+)
+
+echo [OK] Quyen Administrator: DA CO.
+
 :: Cấu hình đường dẫn và URL
 set GITHUB_RELEASE_URL=https://github.com/NDCLI/colorpick/releases/latest/download
 set GITHUB_RAW_URL=https://raw.githubusercontent.com/NDCLI/colorpick/master
@@ -63,7 +85,7 @@ py -3.13 -m pip install -r %REQ_FILE%
 echo [4/4] Dang tao shortcut ngoai Desktop...
 set SCRIPT_PATH=%INSTALL_DIR%\%APP_FILE%
 set SHORTCUT_PATH=%USERPROFILE%\Desktop\Color Picker.lnk
-powershell -Command "$WshShell = New-Object -ComObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%SHORTCUT_PATH%'); $Shortcut.TargetPath = 'pyw.exe'; $Shortcut.Arguments = '-3.13 \"%SCRIPT_PATH%\"'; $Shortcut.Save()"
+powershell -Command "$WshShell = New-Object -ComObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%SHORTCUT_PATH%'); $Shortcut.TargetPath = 'pyw.exe'; $Shortcut.Arguments = '-3.13 "%SCRIPT_PATH%"'; $Shortcut.WorkingDirectory = '%INSTALL_DIR%'; $Shortcut.Save()"
 
 echo ======================================================
 echo [THANH CONG] Setup hoan tat!
@@ -73,4 +95,3 @@ echo ======================================================
 pause
 start py -3.13w "%APP_FILE%"
 exit /b
-
