@@ -44,7 +44,7 @@ function App() {
       <nav className="glass">
         <div className="container nav-content">
           <div className="logo">
-            <span>ColorPicker <span className="v3">v3.0</span></span>
+            <span>ColorPicker <span className="v3">v3.1</span></span>
           </div>
           <div className="nav-links">
             <a href="#features">Tính năng</a>
